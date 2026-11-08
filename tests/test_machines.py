@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest import mock
 
 import pytest
 import redis as redis_lib
 
 from lupin import agent as agent_mod
-from lupin import cli, machines
+from lupin import cli, machines, quota_cache
 
 
 _AMBIENT_ENV_VARS = (
@@ -132,6 +133,39 @@ def test_heartbeat_fills_quota_from_quota_snapshot(redis_port, flush_redis, tmp_
     kw = _kw(redis_port)
     record = machines.join(f"127.0.0.1:{redis_port}", config_path=tmp_path / "fleet.json")
     assert record["quota"] == {"claude": {"pct_left": 50, "resets_at": None, "source": "test"}}
+
+
+def _write_local_quota(monkeypatch, tmp_path, rows, seconds_ago):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    path = Path(quota_cache.local_snapshot_path())
+    path.parent.mkdir(parents=True)
+    written = (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).isoformat()
+    path.write_text(json.dumps({"written_at": written, "rows": rows}))
+
+
+def test_heartbeat_reads_fresh_local_quota_file(redis_port, flush_redis, tmp_path, monkeypatch):
+    # Undo the file read and the heartbeat has no rows, so this fails.
+    machines.join(f"127.0.0.1:{redis_port}", config_path=tmp_path / "fleet.json")
+    mine = {"provider": "claude", "duration": "5 hours", "used_pct": 40.0, "resets_at": None}
+    _write_local_quota(monkeypatch, tmp_path, [mine], seconds_ago=60)
+    with mock.patch.object(machines.quota, "quota_usage", side_effect=AssertionError("live API")):
+        record = machines.heartbeat(_kw(redis_port))
+    assert record["usage_detail"]["quota_rows"] == [mine]
+
+
+def test_heartbeat_ignores_local_quota_file_older_than_max_age(redis_port, flush_redis, tmp_path, monkeypatch):
+    machines.join(f"127.0.0.1:{redis_port}", config_path=tmp_path / "fleet.json")
+    mine = {"provider": "claude", "duration": "5 hours", "used_pct": 40.0, "resets_at": None}
+    _write_local_quota(monkeypatch, tmp_path, [mine], seconds_ago=1200)
+    record = machines.heartbeat(_kw(redis_port))
+    assert record["usage_detail"]["quota_rows"] == []
+
+
+def test_heartbeat_has_no_quota_rows_without_local_file(redis_port, flush_redis, tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    machines.join(f"127.0.0.1:{redis_port}", config_path=tmp_path / "fleet.json")
+    record = machines.heartbeat(_kw(redis_port))
+    assert record["usage_detail"]["quota_rows"] == []
 
 
 def test_heartbeat_does_not_wipe_out_of_band_providers(redis_port, flush_redis, tmp_path):

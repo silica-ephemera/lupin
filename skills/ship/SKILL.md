@@ -1,20 +1,15 @@
 ---
 name: ship
 description: >-
-  Finish a delegated GitHub issue from its acceptance checks through verification
-  and a clear report. Use this Lupin skill when implementing or finishing code changes,
-  preparing its pull request, or reporting completed work.
+  Always use this to ship a new feature or fix.
 compatibility: Requires the repository's tools and GitHub CLI. Lupin and Redis are used when fleet claims are configured.
 ---
 
-# Ship a delegated issue
-
-Follow the repository's `AGENTS.md`, issue workflow, and release rules. Start
-every GitHub comment that you post with `Loop:`.
+# Shipping it!
 
 ## Check the issue and checkout
 
-1. Read the issue and its latest comments. For a Lupin-managed repo, run:
+1. Read the issue (when available) and its latest comments. For a Lupin-managed repo, run:
 
    ```sh
    lupin review-route --prefetch 123 --repo OWNER/REPO
@@ -23,8 +18,10 @@ every GitHub comment that you post with `Loop:`.
    Use `lupin place 123 --json` for a model, effort, and machine suggestion. It
    does not claim or start the task.
 
+   In the absence of an issue, quickly create a brief issue and claim it. Keep it concise.
+
 2. Check `pwd`, the branch, and `git status`. Use the issue's worktree. Unless directed
-   by the owner, avoid editing a shared main checkout that another loop may use.
+   by the owner, avoid editing a shared main checkout that another loop may use. Work in a dedicated worktree if you are not on one already.
 3. Read the acceptance checks. If they are unclear, report the gap before
    coding. Do not replace the requested behavior with a smaller change.
 4. For a review fix, read the PR's latest comments and reviews. Use the same
@@ -51,6 +48,7 @@ every GitHub comment that you post with `Loop:`.
   where outside data enters, data-loss handling, security, or accessibility.
 - Write a comment only for the why, on one line. Mark a shortcut with a known
   limit: `shortcut: <limit>, <upgrade trigger>`.
+- For ALL visual / spatial changes, open a draft PR as soon as you have any screenshots to share of the proposed final result (that you have inspected and confirm match expectations)! It is critical to do this as early as is feasible in the process; do not wait for the full gate to finish running to start your draft, otherwise your work risks being lost. By sticking to this policy, you may also receive valuable early feedback from the owner from occasion. Of course, update the PR and promote it from a draft as soon as it is fully polished and ready for review.
 - Add a test only if no test for that behavior fails when you undo your change. Check:
   undo the change, run the tests for that area, and read which tests fail. If
   an existing test for the same behavior fails, add no test; unrelated failures
